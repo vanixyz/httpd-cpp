@@ -4,6 +4,7 @@
 #include <unistd.h> //close() k lie
 #include <sys/socket.h> //sokcet fucntions
 #include <netinet/in.h> //sockaddr_in struct
+#include "http_parser.hpp"
 
 int main(){
     //1. sokcet banao ye ek "phone" hai jo abhi kisi no. se juda nhi
@@ -43,14 +44,33 @@ int main(){
         if(client_fd<0) continue;
 
         //clinet ne kya bola(browser ki req) padho aur print karo
-        char buffer[4096];
+        char buffer[4096]; //clinet req abi ek buffer ki form me h not structured 
         std::memset(buffer , 0 , sizeof(buffer));
-        read(client_fd, buffer , sizeof(buffer)-1);
-        std::cout<<"-----Requesr aayi------\n"<<buffer<<"\n";
+        // read(client_fd, buffer , sizeof(buffer)-1);
+        // std::cout<<"-----Requesr aayi------\n"<<buffer<<"\n";
+        int bytes = read(client_fd , buffer , sizeof(buffer)-1);
+        if(bytes<=0) {close(client_fd); continue;}
+
+        HttpRequest req= parse_request(std::string(buffer,bytes));
+     if(!req.valid){
+        std:: string body =  "<h1>400 BAD REQUEST</h1>";
+        std:: string response=
+        "HTTP/1.1 400 Bad Request\r\n"
+        "Content-Type: text/html\r\n"
+        "Content-Length: " + std:: to_string(body.size()) +"\r\n"
+        "\r\n" + body;
+        write(client_fd, response.c_str(), response.size());
+         close(client_fd);
+         continue;
+  
+     }
+        std::cout<<"Method"<< req.method 
+        << "| Path: "<<req.path 
+        <<" | Headers: " << req.headers.size() << "\n";
 
         //HTTP jawab - format fixed hai : status line , headers,
         //Khali line (\r\n\r\n), phir body
-        std::string body = "<h1>Hello from my server!</h1>";
+        std::string body = "<h1>You asked for: "+ req.path +"</h1>";
         std::string response=
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/html\r\n"
