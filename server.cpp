@@ -5,6 +5,7 @@
 #include <sys/socket.h> //sokcet fucntions
 #include <netinet/in.h> //sockaddr_in struct
 #include "http_parser.hpp"
+#include "file_server.hpp"
 
 int main(){
     //1. sokcet banao ye ek "phone" hai jo abhi kisi no. se juda nhi
@@ -42,8 +43,7 @@ int main(){
         //sirf IS client se baat krne k lie
         int client_fd = accept(server_fd , nullptr , nullptr);
         if(client_fd<0) continue;
-
-        //clinet ne kya bola(browser ki req) padho aur print karo
+        //client ne kya bola(browser ki req) padho aur print karo
         char buffer[4096]; //clinet req abi ek buffer ki form me h not structured 
         std::memset(buffer , 0 , sizeof(buffer));
         // read(client_fd, buffer , sizeof(buffer)-1);
@@ -68,18 +68,62 @@ int main(){
         << "| Path: "<<req.path 
         <<" | Headers: " << req.headers.size() << "\n";
 
-        //HTTP jawab - format fixed hai : status line , headers,
-        //Khali line (\r\n\r\n), phir body
-        std::string body = "<h1>You asked for: "+ req.path +"</h1>";
-        std::string response=
-        "HTTP/1.1 200 OK\r\n"
-        "Content-Type: text/html\r\n"
-        "Content-Length: " + std::to_string(body.size())+"\r\n"
-        "\r\n" + body;
+//         //HTTP jawab - format fixed hai : status line , headers,
+//         //Khali line (\r\n\r\n), phir body
+//         std::string body = "<h1>You asked for: "+ req.path +"</h1>";
+//         std::string response=
+//         "HTTP/1.1 200 OK\r\n"
+//         "Content-Type: text/html\r\n"
+//         "Content-Length: " + std::to_string(body.size())+"\r\n"
+//         "\r\n" + body;
         
-        write(client_fd , response.c_str(), response.size());
-        close(client_fd); //is client se batt khtm
-    }
-  close(server_fd);
-  return 0;
+//         write(client_fd , response.c_str(), response.size());
+//         close(client_fd); //is client se batt khtm
+//     }
+//   close(server_fd);
+//   return 0;
+
+
+//path se file tak
+std::string path = req.path;
+if(path=="/") path = "/index.html"; //ghar ka default page
+
+//SECURITY: ".." wale raste block - warna koi
+// /../../etc/passwd mang ke system files le jayega
+if(path.find("..")!= std::string::npos){
+    std::string body = "<h1>403 Forbidden </h1>";
+    std::string response=
+    "HTTP/1.1 403 Forbidden\r\n"
+    "Content-Type: text/html\r\n"
+    "Content-Length: " + std::to_string(body.size()) +"\r\n"
+    "\r\n"+body;
+    write(client_fd, response.c_str(), response.size());
+    close(client_fd);
+    continue;
 }
+std::string content;
+if(!read_file("www" + path, content)){
+    std::string body ="<h1>404 Not Found</h1>";
+    std::string response=
+    "HTTP/1.1 404 Not Found\r\n"
+    "Content-Type : text/html\r\n"
+    "Content-Length: "+ std::to_string(body.size())+"\r\n"
+    "\r\n"+body;
+    write(client_fd , response.c_str(),response.size());
+    close(client_fd);
+    continue;
+}
+
+//file mili : shi type ke saath bhejo
+
+std::string response=
+"HTTP/1.1 200 OK\r\n"
+"Content-Type: " + get_mime_type(path) +"\r\n"
+"Content-Length: "+ std::to_string(content.size()) + "\r\n"
+"\r\n"+ content;
+write(client_fd,response.c_str(),response.size());
+close(client_fd); //is client se baat kht,
+}
+close(server_fd);
+return 0;
+}   //main ka end

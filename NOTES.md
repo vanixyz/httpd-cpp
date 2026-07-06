@@ -26,11 +26,32 @@ Raw log of what I learned and broke while building this. For future me
  -  "TIME_WAIT per-connection hota hai (4-tuple ka), per-port nahi — chalte server pe naye clients unaffected rehte hain."
  - entry (ye wali badi kaam ki hai): "Browser tab band karne se server band nahi hota — server independent process hai, accept() pe wait karna hi uska normal state hai. Aur: single-threaded server ko ek idle/slow client block kar sakta hai (Chrome preconnect se live dekha) — yahi multithreading + timeouts ka motivation hai."
  -bytes>=0 ulta condition + "didn't send any data" symptom
-" \t" missing space in find_first_not_of
-#include = copy-paste, inline/ODR, hpp vs cpp
-fd = kernel table ka index/ID, 0/1/2 reserved
-multi-line string me beech ka semicolon = statement cut, lines discard
+- " \t" missing space in find_first_not_of
+- #include = copy-paste, inline/ODR, hpp vs cpp
+- fd = kernel table ka index/ID, 0/1/2 reserved
+- multi-line string me beech ka semicolon = statement cut, lines discard
 kachre pe 200 OK ja raha tha → req.valid check + 400 handler
 netcat blocked: kernel ka connect (backlog) vs process ka accept — idle browser preconnect ne single-threaded server ko block kiya
-Content-Length = body ka byte-count ka vaada; galat ho to client atakta hai
-server terminal = mere cout, netcat = raw bytes, browser = rendered
+- Content-Length = body ka byte-count ka vaada; galat ho to client atakta hai
+- server terminal = mere cout, netcat = raw bytes, browser = rendered
+- "accept() < 0 = us ek client ke liye fail (fd khatam / client bhaag gaya / signal). Response: continue — per-client error server ko nahi girata. Fatal (socket/bind) pe exit, transient (accept/read) pe skip — error severity ka fark."
+- fd limit: soft ~1024 default (ulimit -n), hard limit lakhs me. Khatam hone pe EMFILE → accept fail. fd leak + limit = server ghanton baad naye connections refuse karta hai. select() ka 1024 cap → C10K problem → epoll ka janm."
+- : "Single-threaded me fd limit concurrency se nahi, LEAK se hit hoti hai — leak cumulative hai (har missed close = ek fd hamesha ke liye gaya), 1024 requests kaafi hain marne ke liye. Backlog kernel queue hai, process fd nahi khata. Keep-alive = duration ka game, threads = volume ka game."
+-  "read() = 'is call me jo mila' — poori request ki guarantee NAHI (TCP stream hai, message boundaries nahi hote). Localhost pe hamesha poora milta dikhta hai = jhootha comfort. Fix: delimiter (\r\n\r\n) tak read-loop; body ke liye Content-Length tak. Buffer-size limit bhi isi se khatam hoti hai."
+- #pragma once lagate hain taaki ek single file me code repeat na ho (Compile-time protection).inline lagate hain taaki alag-alag files ke beech me code takraye nahi (Link-time protection).
+- "CSS download hui render ki jagah = server octet-stream bhej raha tha = MIME detection fail. Chrome galat-MIME stylesheet ko silently reject karta hai — koi error nahi, bas rang nahi. Debug ka rasta: file ko seedha URL se kholo, browser ka behavior hi MIME bata deta hai." — ye debugging story interview-grade hai, "how did you test MIME handling" ka jeeta-jaagta jawab 😄
+-- MIME bug: map me ".css" ki jagah ",css" likh diya (dot→comma typo).
+  Koi compile error nahi, koi crash nahi — bas lookup miss → default
+  octet-stream → Chrome ne CSS silently reject ki / download karayi.
+  Lesson: logic bugs chupke se galat hote hain; data (keys, strings,
+  configs) ko bhi code jitni dhyan se proofread karo.
+  Debug chain: rang nahi → quote-test se HTML fresh confirm → direct
+  URL → download hua → octet-stream → MIME detection → hpp me typo.
+  - ## Day 3 section banao — aaj ki entries (short me likh do, apne words me):
+
+sizeof(string) ≠ .size() — sizeof = object ka size (~32 bytes), .size() = content ki lambai
+curl paths normalize karta hai — .. server tak pahuncha hi nahi; asli security test raw bytes se (printf + nc). Client-side safai pe bharosa nahi.
+MIME comma-bug ki poori detective story (pichhle message me draft de diya tha, wahi use kar lo)
+Chrome galat-MIME CSS ko silently reject karta hai; direct URL kholna = MIME check ka shortcut (download hua = octet-stream)
+Commented code ne brackets kha liye the — purana code delete karo, git yaad rakhta hai
+Content badla to sirf refresh, code badla to build + restart

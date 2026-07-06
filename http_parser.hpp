@@ -30,9 +30,9 @@ inline HttpRequest parse_request(const std::string& raw){
     return req; //teeno nahi mile = malformed request
 
     //---Step3 : header parse karo , line by line
-    size_t pos=line_end+2; //+2 = \r\n ke paar
+    size_t pos=line_end+2; //+2 = \r\n ke paar \r\n ki total length 2 bytes hoti h
     while(true){
-        size_t next = raw.find("\r\n",pos);
+        size_t next = raw.find("\r\n",pos); //dhundhra hai ki\r\n kis index pr h strting from pos
         if(next==std::string::npos) break; //age \r\n nahi
         if(next==pos) break; //khali line mili headrers khatam 
 
