@@ -55,21 +55,63 @@ MIME comma-bug ki poori detective story (pichhle message me draft de diya tha, w
 Chrome galat-MIME CSS ko silently reject karta hai; direct URL kholna = MIME check ka shortcut (download hua = octet-stream)
 Commented code ne brackets kha liye the — purana code delete karo, git yaad rakhta hai
 Content badla to sirf refresh, code badla to build + restart
-- ## Day 4 — keep-alive, read-loop, timeout
-- read() poori request ki guarantee nahi deta (TCP stream) → read_request()
-  loop: \r\n\r\n milne tak append; 64KB guard (endless-bytes attack se).
-- Keep-alive: close ab REQUEST ke end pe nahi, CONNECTION ke end pe —
-  inner loop = ek connection ki saari requests, outer = naye clients.
-  HTTP/1.1 default keep-alive, "Connection: close" pe kaato.
-- Status line HAMESHA response ki pehli line — Connection header neeche.
-- fd-leak bug pakda: close(client_fd) outer loop ke BAHAR chala gaya tha
-  (kabhi chalta hi nahi). Nested loops me close ki jagah = audit point.
-- SO_RCVTIMEO: 5 sec idle → read -1 → break → close. Idle client ab
-  poore server ko sirf 5 sec bandhak bana sakta hai (pehle hamesha).
-- Timeout "fail" ka drama: server ne sahi close kiya tha (FIN-WAIT-2),
-  nc apne khule stdin ki wajah se CLOSE-WAIT me latka tha. ss -tnp ne
-  sach dikhaya. Lesson: test fail ho to pehle TEST ko check karo.
-  nc -q 1 = EOF ke baad exit. Naye TCP states seekhe: FIN-WAIT-2, CLOSE-WAIT.
-- curl "Re-using existing connection" = keep-alive ka litmus test.
-- Debug print (read returned: n) daala tha — use HATANA hai (Step 5 me).
-- aaj ka epilogue: "nc WSL pe server-close ke baad bhi exit nahi karta — debug prints ne saboot diya: read -1 exactly 5 sec pe. Do independent evidence (ss states + debug print) se server begunah sabit. Lesson: tool pe shak karne se pehle evidence lo, evidence mile to tool badlo — python socket one-liner cleaner test nikla."
+## Day 4 — keep-alive, read-loop, timeout
+
+### Read-loop
+- read() poori request ki guarantee nahi deta — TCP byte-stream hai,
+  message boundaries nahi hote. Localhost pe poora milta dikhta hai =
+  jhootha comfort; asli network pe partial reads normal.
+- Fix: read_request() — \r\n\r\n milne tak loop me append. memset ki
+  zaroorat khatam (append exact n bytes leta hai).
+- 64KB guard: koi endless bytes bheje bina \r\n\r\n ke to memory na
+  khaye — resource-exhaustion defense (security feature #2).
+
+### Keep-alive
+- Pehle: har request ke baad close = har file ka apna TCP handshake
+  (ek page load = 3 connections). Ab: EK connection, kai requests.
+- Structure: inner while(keep_alive) = ek connection ki baat-cheet,
+  outer while(true) = naye clients. close() ab sirf connection ke
+  end pe — request ke end pe NAHI.
+- HTTP/1.1 default = keep-alive; client "Connection: close" bole to
+  us request ke baad kaato. (Day 2 ka " \t" space-trim fix yahan
+  kaam aaya — warna " close" != "close" hamesha true rehta.)
+- Har response me "Connection: keep-alive/close" header batate hain.
+- Status line HAMESHA pehli line — Connection header uske neeche.
+- Proof: curl do URLs pe "Re-using existing connection" bolta hai.
+
+### fd-leak bug (khud ka)
+- close(client_fd) galti se outer loop ke BAHAR chala gaya tha =
+  kabhi chalta hi nahi = har client ek fd leak = ~1024 clients me
+  server naye connections lena band kar deta. Nested loops me
+  close ki jagah = audit point. break inner loop todta hai, close
+  uske turant baad (outer ke andar).
+
+### Timeout (SO_RCVTIMEO)
+- accept ke baad socket pe 5-sec timer: read me 5 sec kuch nahi
+  aaya to -1 → break → close. Idle client (Chrome preconnect) ab
+  server ko max 5 sec bandhak bana sakta hai — pehle hamesha ke liye.
+- But single thread me problem chhoti hui, khatam nahi: har idle
+  connection = 5-sec ki tax line me lagne walon ke liye (browser
+  refresh 5-sec lag raha tha isi wajah se). Asli ilaaj = threads.
+
+### Timeout-testing ka drama (best debugging story so far)
+- nc test "fail" dikha — prompt kabhi wapas nahi aaya. Shak server pe.
+- ss -tnp ne sach khola: server FIN-WAIT-2 me ("maine FIN bhej diya,
+  tumhare FIN ka wait hai") = server ne 5 sec pe SAHI close kiya tha.
+  nc CLOSE-WAIT me ("FIN mil gaya, mujhe close karna chahiye... but
+  nahi kiya") = doshi nc tha.
+- TCP close DO-TARFA hota hai — dono sides apna FIN bhejti hain.
+  Ek side band = aadha-band connection (half-close), states me dikhta hai.
+- nc kyun atka: uska stdin (keyboard) khula tha, WSL ke nc ka -q flag
+  ne bhi wada nahi nibhaya. Tool ka quirk, code ki galti nahi.
+- Debug prints ka pattern: ek "yahan pahuncha?", ek "kya mila?" —
+  read -1 exactly 5 sec pe = timeout ka ECG.
+- Final certificate: python socket one-liner + time = real 5.171s.
+- LESSON: test fail ho to 3 suspects — code, test, tool. Faisla
+  independent evidence se (ss + debug prints, dono ek hi baat bole).
+
+  ### Kya se kya hua
+Pehle: har request pe naya connection, ek read call, idle client
+hamesha ka bandhak. Ab: ek connection pe kai requests (keep-alive),
+poori request aane tak read-loop, 5-sec timeout ka bouncer. Bacha:
+ek waqt me ek hi client (single thread) — Day 5 ka kaam.
