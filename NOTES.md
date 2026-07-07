@@ -55,3 +55,21 @@ MIME comma-bug ki poori detective story (pichhle message me draft de diya tha, w
 Chrome galat-MIME CSS ko silently reject karta hai; direct URL kholna = MIME check ka shortcut (download hua = octet-stream)
 Commented code ne brackets kha liye the — purana code delete karo, git yaad rakhta hai
 Content badla to sirf refresh, code badla to build + restart
+- ## Day 4 — keep-alive, read-loop, timeout
+- read() poori request ki guarantee nahi deta (TCP stream) → read_request()
+  loop: \r\n\r\n milne tak append; 64KB guard (endless-bytes attack se).
+- Keep-alive: close ab REQUEST ke end pe nahi, CONNECTION ke end pe —
+  inner loop = ek connection ki saari requests, outer = naye clients.
+  HTTP/1.1 default keep-alive, "Connection: close" pe kaato.
+- Status line HAMESHA response ki pehli line — Connection header neeche.
+- fd-leak bug pakda: close(client_fd) outer loop ke BAHAR chala gaya tha
+  (kabhi chalta hi nahi). Nested loops me close ki jagah = audit point.
+- SO_RCVTIMEO: 5 sec idle → read -1 → break → close. Idle client ab
+  poore server ko sirf 5 sec bandhak bana sakta hai (pehle hamesha).
+- Timeout "fail" ka drama: server ne sahi close kiya tha (FIN-WAIT-2),
+  nc apne khule stdin ki wajah se CLOSE-WAIT me latka tha. ss -tnp ne
+  sach dikhaya. Lesson: test fail ho to pehle TEST ko check karo.
+  nc -q 1 = EOF ke baad exit. Naye TCP states seekhe: FIN-WAIT-2, CLOSE-WAIT.
+- curl "Re-using existing connection" = keep-alive ka litmus test.
+- Debug print (read returned: n) daala tha — use HATANA hai (Step 5 me).
+- aaj ka epilogue: "nc WSL pe server-close ke baad bhi exit nahi karta — debug prints ne saboot diya: read -1 exactly 5 sec pe. Do independent evidence (ss states + debug print) se server begunah sabit. Lesson: tool pe shak karne se pehle evidence lo, evidence mile to tool badlo — python socket one-liner cleaner test nikla."

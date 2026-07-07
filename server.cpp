@@ -6,7 +6,19 @@
 #include <netinet/in.h> //sockaddr_in struct
 #include "http_parser.hpp"
 #include "file_server.hpp"
-
+//Poori request aane tak padho (headers ka end =\r\n\r\n)
+//true = request mili , false=client gaya/timeout/ bahut badi request
+bool read_request(int fd , std::string& raw){
+    char buf[4096];
+    raw.clear();
+    while(raw.find("\r\n\r\n")==std::string::npos){   
+        int n = read(fd,buf,sizeof(buf));
+        if(n<=0) return false; //client gaya ya timeout
+        raw.append(buf , n);
+        if(raw.size() > 65536) return false; //64kb+ headers? kachra/attack
+    }
+    return true;
+}
 int main(){
     //1. sokcet banao ye ek "phone" hai jo abhi kisi no. se juda nhi
     // AF-INET= IPv4 , SOCK_STREAM = TCP
@@ -43,16 +55,22 @@ int main(){
         //sirf IS client se baat krne k lie
         int client_fd = accept(server_fd , nullptr , nullptr);
         if(client_fd<0) continue;
-        //client ne kya bola(browser ki req) padho aur print karo
-        char buffer[4096]; //clinet req abi ek buffer ki form me h not structured 
-        std::memset(buffer , 0 , sizeof(buffer));
-        // read(client_fd, buffer , sizeof(buffer)-1);
-        // std::cout<<"-----Requesr aayi------\n"<<buffer<<"\n";
-        int bytes = read(client_fd , buffer , sizeof(buffer)-1);
-        if(bytes<=0) {close(client_fd); continue;}
 
-        HttpRequest req= parse_request(std::string(buffer,bytes));
-     if(!req.valid){
+        //TIMEOUT: 5sec me kuch nahi bola to read() -1 dega
+        //(idle client poore server ko bandhak na bna le - hmara
+        //Chrome-preconnect vla dushman, yaad hai?)
+        timeval tv;
+        tv.tv_sec=5;
+        tv.tv_usec=0;
+        setsockopt(client_fd , SOL_SOCKET, SO_RCVTIMEO, &tv , sizeof(tv));
+
+        bool keep_alive = true;
+        while(keep_alive){  //EK connection kayi requests
+            std::string raw ;
+            if(!read_request(client_fd , raw)) break; //gaya/timeout ->bas
+
+            HttpRequest req = parse_request(raw);
+             if(!req.valid){
         std:: string body =  "<h1>400 BAD REQUEST</h1>";
         std:: string response=
         "HTTP/1.1 400 Bad Request\r\n"
@@ -60,33 +78,23 @@ int main(){
         "Content-Length: " + std:: to_string(body.size()) +"\r\n"
         "\r\n" + body;
         write(client_fd, response.c_str(), response.size());
-         close(client_fd);
-         continue;
+        break;
   
      }
-        std::cout<<"Method"<< req.method 
+         std::cout<<"Method"<< req.method 
         << "| Path: "<<req.path 
         <<" | Headers: " << req.headers.size() << "\n";
 
-//         //HTTP jawab - format fixed hai : status line , headers,
-//         //Khali line (\r\n\r\n), phir body
-//         std::string body = "<h1>You asked for: "+ req.path +"</h1>";
-//         std::string response=
-//         "HTTP/1.1 200 OK\r\n"
-//         "Content-Type: text/html\r\n"
-//         "Content-Length: " + std::to_string(body.size())+"\r\n"
-//         "\r\n" + body;
-        
-//         write(client_fd , response.c_str(), response.size());
-//         close(client_fd); //is client se batt khtm
-//     }
-//   close(server_fd);
-//   return 0;
+        //Client kya chahta hai rakhein ya kaatien ?
+        //HTTP/1.1 ka default: keep-alive , jab tak "close" na bole
+        std:: string conn;
+        if(req.headers.count("Connection")) conn = req.headers["Connection"];
+        keep_alive = (req.version == "HTTP/1.1")&& (conn != "close");
 
-
-//path se file tak
-std::string path = req.path;
-if(path=="/") path = "/index.html"; //ghar ka default page
+        std::string conn_header = keep_alive?"keep-alive": "close";
+        //path se file tak
+       std::string path = req.path;
+       if(path=="/") path = "/index.html"; //ghar ka default page
 
 //SECURITY: ".." wale raste block - warna koi
 // /../../etc/passwd mang ke system files le jayega
@@ -94,36 +102,39 @@ if(path.find("..")!= std::string::npos){
     std::string body = "<h1>403 Forbidden </h1>";
     std::string response=
     "HTTP/1.1 403 Forbidden\r\n"
+     "Connection: " + conn_header + "\r\n"
     "Content-Type: text/html\r\n"
     "Content-Length: " + std::to_string(body.size()) +"\r\n"
     "\r\n"+body;
     write(client_fd, response.c_str(), response.size());
-    close(client_fd);
-    continue;
+    break;
 }
 std::string content;
 if(!read_file("www" + path, content)){
     std::string body ="<h1>404 Not Found</h1>";
     std::string response=
     "HTTP/1.1 404 Not Found\r\n"
-    "Content-Type : text/html\r\n"
+     "Connection: " + conn_header + "\r\n"
+    "Content-Type: text/html\r\n"
     "Content-Length: "+ std::to_string(body.size())+"\r\n"
     "\r\n"+body;
     write(client_fd , response.c_str(),response.size());
-    close(client_fd);
-    continue;
+    break;
 }
 
 //file mili : shi type ke saath bhejo
 
 std::string response=
 "HTTP/1.1 200 OK\r\n"
+ "Connection: " + conn_header + "\r\n"
 "Content-Type: " + get_mime_type(path) +"\r\n"
 "Content-Length: "+ std::to_string(content.size()) + "\r\n"
 "\r\n"+ content;
 write(client_fd,response.c_str(),response.size());
-close(client_fd); //is client se baat kht,
+
 }
-close(server_fd);
-return 0;
+close(client_fd);
+  }
+  close(server_fd);
+  return 0;
 }   //main ka end
