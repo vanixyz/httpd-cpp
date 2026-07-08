@@ -140,3 +140,35 @@ ek waqt me ek hi client (single thread) — Day 5 ka kaam.
 Pehle: ek waiter, ek table, baaki line me. Ab: har table ka apna waiter,
 koi kisi ko nahi rokta. Problem: waiter unlimited nahi ho sakte —
 Day 6 me fixed staff + order queue (thread pool).
+
+
+-  file me order matters (ya forward-declare karo), class ke andar order sirf insaano ke liye hai, compiler ke liye nahi. NOTES.md entry ban gayi free me 
+-## Day 6 — thread pool
+- Thread-per-connection ki dikkat: har client pe naya thread (~8MB
+  stack, creation cost) — 10K clients = maut. Ilaaj: 8 fixed workers
+  + ek shared queue = producer-consumer pattern.
+- Mutex = taala: queue chhoone se pehle lo, kaam karo, chhodo.
+  lock_guard/unique_lock = RAII — scope khatam, taala khud chhoota.
+- Critical section CHHOTA rakho: lock sirf push/pop jitna; asli kaam
+  (handle_client) lock ke BAHAR — warna 8 workers ek taale pe atke =
+  wapas serial.
+- condition_variable = ghanti: cv.wait = "kaam aaye to jagana" (CPU
+  free, busy-wait nahi); wait sote waqt lock chhodta hai, uthte waqt
+  wapas leta hai. notify_one = ek worker jagao.
+- wait me condition/while kyun: (1) doosra worker kaam utha chuka ho
+  sakta hai, (2) spurious wakeups — OS bina ghanti ke bhi jaga deta hai.
+- Queue<int> rakhi (sirf fd) — jobs homogeneous hain; generic banana ho
+  to std::function<void()> + lambda-capture (overhead ke saath).
+  Deliberate simplicity bhi design decision hai.
+- Class ke andar member order compiler ke liye matter nahi karta
+  (complete-class context) — convention: public interface upar,
+  private plumbing neeche. File-level pe order matters (ya forward
+  declaration — jo headers ka core idea hai).
+- Shutdown nahi banaya (server hamesha chalta hai) — clean shutdown =
+  stop flag + notify_all + join. Interview future-work answer.
+- Proof: /proc/<pid>/task = thread count — 9 fixed, load pe bhi.
+
+### Kya se kya hua
+Kal: har customer pe naya waiter hire (unbounded). Aaj: 8 permanent
+waiters + order counter. Memory bounded, threads reuse. Bacha:
+benchmarks — kitna tez hai ye sab? (Day 7)

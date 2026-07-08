@@ -7,6 +7,7 @@
 #include "http_parser.hpp"
 #include "file_server.hpp"
 #include <thread>
+#include "thread_pool.hpp"
 //Poori request aane tak padho (headers ka end =\r\n\r\n)
 //true = request mili , false=client gaya/timeout/ bahut badi request
 bool read_request(int fd , std::string& raw){
@@ -126,17 +127,14 @@ int main(){
     //5 listen=ringer on karo , calls aa sakti hai ab
     listen(server_fd,10); //10=waiting line ki length
     std::cout<<"server chal raha hai: http://localhost:8081\n";
-
+    
+     ThreadPool pool(8); //8 permanent waiters
     //6 hamehsa k lie loop har call utha jawab de , kaat de
     while(true){
       int client_fd = accept(server_fd, nullptr , nullptr);
       if(client_fd<0) continue;
-
-      //naya thread bnao client usko do 
-      // aage badho
-      std::thread t(handle_client, client_fd);
-      t.detach(); //"apna kaam krke khud khatam hojana", mujhe
-                  //"vapas mat report karna"- fire and  forget
+      pool.submit(client_fd);
+     
 }
   close(server_fd);
   return 0;
