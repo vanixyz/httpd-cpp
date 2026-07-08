@@ -115,3 +115,28 @@ Pehle: har request pe naya connection, ek read call, idle client
 hamesha ka bandhak. Ab: ek connection pe kai requests (keep-alive),
 poori request aane tak read-loop, 5-sec timeout ka bouncer. Bacha:
 ek waqt me ek hi client (single thread) — Day 5 ka kaam.
+
+## Day 5 — threads (thread-per-connection)
+- Problem (4 avatars me jheli): single thread = ek idle client sabko
+  rokta tha. Ilaaj: har client apna thread.
+- Refactor: accept ke baad ka SAB (timeout→loop→close) handle_client()
+  me; main sirf accept + thread bana ke aage.
+- std::thread t(handle_client, client_fd); t.detach() = fire-and-forget:
+  thread apna kaam karke khud khatam. join() = wait karna (wo yahan
+  wapas single-threaded bana deta).
+- close(client_fd) ab thread ke andar — har thread apna phone khud rakhta hai.
+- -pthread compile flag chahiye threads ke liye (build alias updated).
+- C++ top-to-bottom padhta hai: function use se pehle declared ho
+  (order theek kiya; forward declaration = headers ka core idea).
+- Test: nc atka + browser INSTANT (pehle 5-sec tax). 5 parallel curls,
+  5 threads, sab served.
+- Race condition abhi nahi dikhi prints me — but shared cout pe threads
+  bina lock ke likh rahe hain = wo hai, bas sharmila hai. "Kabhi dikhe
+  kabhi nahi" = race ki definition. Mutex Day 6 me.
+- Agla sawal khud se: 10K clients = 10K threads? Nahi — thread creation
+  mehenga, unlimited threads = memory blast. Ilaaj: THREAD POOL.
+
+### Kya se kya hua
+Pehle: ek waiter, ek table, baaki line me. Ab: har table ka apna waiter,
+koi kisi ko nahi rokta. Problem: waiter unlimited nahi ho sakte —
+Day 6 me fixed staff + order queue (thread pool).

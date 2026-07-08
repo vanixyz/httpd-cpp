@@ -6,6 +6,7 @@
 #include <netinet/in.h> //sockaddr_in struct
 #include "http_parser.hpp"
 #include "file_server.hpp"
+#include <thread>
 //Poori request aane tak padho (headers ka end =\r\n\r\n)
 //true = request mili , false=client gaya/timeout/ bahut badi request
 bool read_request(int fd , std::string& raw){
@@ -19,54 +20,16 @@ bool read_request(int fd , std::string& raw){
     }
     return true;
 }
-int main(){
-    //1. sokcet banao ye ek "phone" hai jo abhi kisi no. se juda nhi
-    // AF-INET= IPv4 , SOCK_STREAM = TCP
-    int server_fd= socket(AF_INET,SOCK_STREAM,0);
-    if(server_fd<0){
-        std::cerr<<"socket() fail ho gaya\n";
-        return 1;
-    }
-    //2. ye line address already in use vale error se bachayegi
-    //server dubara chalo to purana vla port turant mil jaye
-    int opt=1;
-    setsockopt(server_fd , SOL_SOCKET , SO_REUSEADDR , &opt , sizeof(opt));
+void handle_client(int client_fd){
+    timeval tv;
+    tv.tv_sec=5;
+    tv.tv_usec=0;
+    setsockopt(client_fd,SOL_SOCKET,SO_RCVTIMEO , &tv , sizeof(tv));
 
-    //3 address setup "main port 8080 pe rahunga"
-    sockaddr_in addr;
-    std::memset(&addr , 0 , sizeof(addr));
-    addr.sin_family=AF_INET;
-    addr.sin_addr.s_addr=INADDR_ANY; //ismachine k ekisi bhi IP epe
-    addr.sin_port=htons(8081); //htons = port ko network fromat me
+    bool keep_alive=true;
 
-    //4. bind = phonei ko number do
-    if(bind(server_fd , (sockaddr*)&addr,sizeof(addr))<0){
-        std::cerr<<"bind()) fail-port busy hai kya?\n";
-        return 1;
-    }
-
-    //5 listen=ringer on karo , calls aa sakti hai ab
-    listen(server_fd,10); //10=waiting line ki length
-    std::cout<<"server chal raha hai: http://localhost:8081\n";
-
-    //6 hamehsa k lie loop har call utha jawab de , kaat de
-    while(true){
-        //accept-incoming call uthao ; ye naya fd deta hai
-        //sirf IS client se baat krne k lie
-        int client_fd = accept(server_fd , nullptr , nullptr);
-        if(client_fd<0) continue;
-
-        //TIMEOUT: 5sec me kuch nahi bola to read() -1 dega
-        //(idle client poore server ko bandhak na bna le - hmara
-        //Chrome-preconnect vla dushman, yaad hai?)
-        timeval tv;
-        tv.tv_sec=5;
-        tv.tv_usec=0;
-        setsockopt(client_fd , SOL_SOCKET, SO_RCVTIMEO, &tv , sizeof(tv));
-
-        bool keep_alive = true;
-        while(keep_alive){  //EK connection kayi requests
-            std::string raw ;
+    while(keep_alive){
+        std::string raw ;
             if(!read_request(client_fd , raw)) break; //gaya/timeout ->bas
 
             HttpRequest req = parse_request(raw);
@@ -131,10 +94,50 @@ std::string response=
 "Content-Length: "+ std::to_string(content.size()) + "\r\n"
 "\r\n"+ content;
 write(client_fd,response.c_str(),response.size());
-
+    }
+    close(client_fd);
 }
-close(client_fd);
-  }
+int main(){
+    //1. sokcet banao ye ek "phone" hai jo abhi kisi no. se juda nhi
+    // AF-INET= IPv4 , SOCK_STREAM = TCP
+    int server_fd= socket(AF_INET,SOCK_STREAM,0);
+    if(server_fd<0){
+        std::cerr<<"socket() fail ho gaya\n";
+        return 1;
+    }
+    //2. ye line address already in use vale error se bachayegi
+    //server dubara chalo to purana vla port turant mil jaye
+    int opt=1;
+    setsockopt(server_fd , SOL_SOCKET , SO_REUSEADDR , &opt , sizeof(opt));
+
+    //3 address setup "main port 8080 pe rahunga"
+    sockaddr_in addr;
+    std::memset(&addr , 0 , sizeof(addr));
+    addr.sin_family=AF_INET;
+    addr.sin_addr.s_addr=INADDR_ANY; //ismachine k ekisi bhi IP epe
+    addr.sin_port=htons(8081); //htons = port ko network fromat me
+
+    //4. bind = phonei ko number do
+    if(bind(server_fd , (sockaddr*)&addr,sizeof(addr))<0){
+        std::cerr<<"bind()) fail-port busy hai kya?\n";
+        return 1;
+    }
+
+    //5 listen=ringer on karo , calls aa sakti hai ab
+    listen(server_fd,10); //10=waiting line ki length
+    std::cout<<"server chal raha hai: http://localhost:8081\n";
+
+    //6 hamehsa k lie loop har call utha jawab de , kaat de
+    while(true){
+      int client_fd = accept(server_fd, nullptr , nullptr);
+      if(client_fd<0) continue;
+
+      //naya thread bnao client usko do 
+      // aage badho
+      std::thread t(handle_client, client_fd);
+      t.detach(); //"apna kaam krke khud khatam hojana", mujhe
+                  //"vapas mat report karna"- fire and  forget
+}
   close(server_fd);
   return 0;
 }   //main ka end
