@@ -172,3 +172,12 @@ Day 6 me fixed staff + order queue (thread pool).
 Kal: har customer pe naya waiter hire (unbounded). Aaj: 8 permanent
 waiters + order counter. Memory bounded, threads reuse. Bacha:
 benchmarks — kitna tez hai ye sab? (Day 7)
+
+-"Do threads EXACT same moment pe lock maang sakte hain (multi-core = true parallel). Tie hota hi nahi: mutex ki neev hardware atomic instruction (CAS/test-and-set) hai — cache-coherence ek ko jitata hai, doosra kernel ki wait-list me. Saara concurrency stack is ek hardware vaade pe khada hai."
+-(Interview word: minimize the critical section / reduce lock contention.)
+ (real systems kya karte hain — interview me bolne layak): teen hathiyar: (1) bounded queue — queue ki max size fix karo (jaise 1000); bhar gayi to naye client ko turant 503 Service Unavailable bol do — "der se haan" se "turant na" behtar hai (fail fast); (2) workers scale karo — 8 ki jagah CPU cores ke hisaab se (hardware_concurrency), ya load pe badhao; (3) timeouts + monitoring — queue depth naapte raho, alarm bajao. Hamare server me abhi unbounded queue hai — ye jaan-boojh ke simplification hai, aur "future work" ka perfect answer: "I'd add a bounded queue with 503 rejection to apply backpressure."
+ -Ye discipline khud interview-material hai: "I ran multiple trials and took the median because single benchmark runs on a VM are noisy" — ye ek line tumhe "number ratta candidate" se "measurement samajhne wala engineer" bana deti hai. 📊
+
+ -Day 7: buildfast (-O2, no ASan) vs build; logging ki keemat; write_all (partial writes — read ka judwa); wrk ka WSL clock bug (307 arab minute 😄) + sanity-check habit; multiple runs + median (variance ka sach); 1→8 workers = ~5x
+
+ 

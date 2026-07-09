@@ -21,6 +21,17 @@ bool read_request(int fd , std::string& raw){
     }
     return true;
 }
+// Poora data likhne ki guarantee — partial writes handle karta hai
+// (write bhi read ki tarah "jitna abhi ho saka" wala hai)
+bool write_all(int fd, const std::string& data) {
+    size_t sent = 0;
+    while (sent < data.size()) {
+        ssize_t n = write(fd, data.data() + sent, data.size() - sent);
+        if (n <= 0) return false;    // client gaya / error
+        sent += n;                    // jitna gaya, aage se continue
+    }
+    return true;
+}
 void handle_client(int client_fd){
     timeval tv;
     tv.tv_sec=5;
@@ -41,7 +52,7 @@ void handle_client(int client_fd){
         "Content-Type: text/html\r\n"
         "Content-Length: " + std:: to_string(body.size()) +"\r\n"
         "\r\n" + body;
-        write(client_fd, response.c_str(), response.size());
+        write_all(client_fd, response);
         break;
   
      }
@@ -70,7 +81,7 @@ if(path.find("..")!= std::string::npos){
     "Content-Type: text/html\r\n"
     "Content-Length: " + std::to_string(body.size()) +"\r\n"
     "\r\n"+body;
-    write(client_fd, response.c_str(), response.size());
+    write_all(client_fd, response);
     break;
 }
 std::string content;
@@ -82,7 +93,7 @@ if(!read_file("www" + path, content)){
     "Content-Type: text/html\r\n"
     "Content-Length: "+ std::to_string(body.size())+"\r\n"
     "\r\n"+body;
-    write(client_fd , response.c_str(),response.size());
+    write_all(client_fd, response);
     break;
 }
 
@@ -94,7 +105,7 @@ std::string response=
 "Content-Type: " + get_mime_type(path) +"\r\n"
 "Content-Length: "+ std::to_string(content.size()) + "\r\n"
 "\r\n"+ content;
-write(client_fd,response.c_str(),response.size());
+ write_all(client_fd, response);
     }
     close(client_fd);
 }
