@@ -3,7 +3,7 @@
 An HTTP/1.1 server written from scratch in C++17 — no frameworks, no
 libraries, just POSIX sockets.
 
-**Status:** Work in progress (Day 1)
+**Status:** Work in progress (Day 8)
 
 ## Current features
 - TCP server using POSIX sockets (socket/bind/listen/accept)
