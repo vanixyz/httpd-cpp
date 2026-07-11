@@ -1,12 +1,310 @@
-
 <!DOCTYPE html>
-<html>
-    <head> 
-        <link rel="stylesheet" href="style.css">
-        <title>Vani</title></head>
-    <body>
-        <img src="me.jpg" width="200">
-        <h1>Hi, I'm Vani</h1>
-        <p>This page is served by my own HTTP server written in CPP. </p>
-    </body>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vani Girdhar — served by her own C++ server</title>
+<meta name="description" content="Portfolio of Vani Girdhar — this page is served by httpd-cpp, an HTTP/1.1 server written from scratch in C++17.">
+<style>
+  :root{
+    --bg:#0F1613;          /* deep green-tinted terminal dark */
+    --panel:#151E1A;
+    --panel2:#1A2620;
+    --ink:#E9EFEA;
+    --muted:#8FA096;
+    --ok:#5BD6A2;          /* status-200 mint */
+    --amber:#F2B44D;       /* highlight amber */
+    --rule:#26332C;
+    --mono:ui-monospace,'Cascadia Code','JetBrains Mono',Menlo,Consolas,monospace;
+    --body:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg);
+    background-image:radial-gradient(circle at 1px 1px, #1C2822 1px, transparent 0);
+    background-size:28px 28px;
+    color:var(--ink);
+    font-family:var(--body);
+    font-size:17px;line-height:1.65;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:760px;margin:0 auto;padding:52px 24px 48px}
+  a{color:var(--ink);text-decoration:underline;text-decoration-color:var(--ok);text-underline-offset:3px}
+  a:hover{color:var(--ok)}
+  a:focus-visible{outline:2px solid var(--ok);outline-offset:3px;border-radius:2px}
+  section{margin-top:64px}
+  .eyebrow{font-family:var(--mono);font-size:.85rem;color:var(--muted);margin-bottom:18px}
+  .eyebrow::before{content:"// ";color:var(--ok)}
+
+  /* ============ HERO: terminal window ============ */
+  .term{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:12px;
+    box-shadow:0 20px 60px rgba(0,0,0,.45);
+    overflow:hidden;
+  }
+  .term-bar{
+    display:flex;align-items:center;gap:7px;
+    padding:11px 14px;border-bottom:1px solid var(--rule);
+    background:var(--panel2);
+  }
+  .dot{width:11px;height:11px;border-radius:50%}
+  .dot:nth-child(1){background:#E5655E}.dot:nth-child(2){background:#F2B44D}.dot:nth-child(3){background:#5BD6A2}
+  .term-title{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-left:8px}
+  .term-body{padding:20px 22px;font-family:var(--mono);font-size:.92rem;line-height:2}
+  .term-body .ln{display:block;opacity:0;animation:arrive .3s ease forwards}
+  .ln:nth-child(1){animation-delay:.1s}.ln:nth-child(2){animation-delay:.45s}
+  .ln:nth-child(3){animation-delay:.8s}.ln:nth-child(4){animation-delay:1.15s}
+  .ln:nth-child(5){animation-delay:1.5s}.ln:nth-child(6){animation-delay:1.85s}
+  @keyframes arrive{to{opacity:1}}
+  .p{color:var(--muted)}
+  .g{color:var(--ok);font-weight:700}
+  .y{color:var(--amber)}
+  .cursor{display:inline-block;width:9px;height:1.1em;background:var(--ok);
+    vertical-align:text-bottom;animation:blink 1s steps(1) infinite}
+  @keyframes blink{50%{opacity:0}}
+
+  h1{font-family:var(--mono);font-size:clamp(2.1rem,6vw,2.9rem);font-weight:700;
+     letter-spacing:-.02em;margin:34px 0 6px}
+  h1 .g{font-weight:700}
+  .tagline{color:var(--muted);font-size:1.03rem}
+  .thesis{border-left:3px solid var(--ok);padding:2px 0 2px 16px;
+    font-size:1.07rem;margin:26px 0 0}
+  .thesis strong{color:var(--ok)}
+
+  /* ============ ARCHITECTURE: animated thread pool ============ */
+  .arch{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:18px 14px 8px}
+  .arch svg{width:100%;height:auto;display:block}
+  .arch .lbl{font-family:var(--mono);font-size:11px;fill:var(--muted)}
+  .arch .lbl-b{font-family:var(--mono);font-size:12px;fill:var(--ink);font-weight:600}
+  .arch .box{fill:var(--panel2);stroke:var(--rule);stroke-width:1;rx:8}
+  .arch .box-ok{stroke:var(--ok)}
+  .arch .wire{stroke:var(--rule);stroke-width:1.5;fill:none}
+  .req{fill:var(--amber)}
+  .req2{fill:var(--ok)}
+  /* requests flowing: accept -> queue -> workers */
+  .flow1{animation:flow1 3.2s linear infinite}
+  .flow2{animation:flow1 3.2s linear infinite;animation-delay:1.1s}
+  .flow3{animation:flow1 3.2s linear infinite;animation-delay:2.2s}
+  @keyframes flow1{
+    0%{transform:translate(0,0);opacity:0}
+    6%{opacity:1}
+    38%{transform:translate(170px,0)}          /* into queue */
+    58%{transform:translate(300px,0)}          /* through queue */
+    64%{transform:translate(300px,0)}
+    92%{transform:translate(470px,-52px);opacity:1}  /* up to a worker */
+    100%{transform:translate(470px,-52px);opacity:0}
+  }
+  .flowB{animation:flowB 3.2s linear infinite;animation-delay:.55s}
+  .flowC{animation:flowB 3.2s linear infinite;animation-delay:1.7s}
+  @keyframes flowB{
+    0%{transform:translate(0,0);opacity:0}
+    6%{opacity:1}
+    38%{transform:translate(170px,0)}
+    58%{transform:translate(300px,0)}
+    64%{transform:translate(300px,0)}
+    92%{transform:translate(470px,52px);opacity:1}   /* down to a worker */
+    100%{transform:translate(470px,52px);opacity:0}
+  }
+  .worker-pulse{animation:pulse 3.2s ease infinite}
+  .worker-pulse2{animation:pulse 3.2s ease infinite;animation-delay:1.6s}
+  @keyframes pulse{0%,55%{stroke:var(--rule)}70%,85%{stroke:var(--ok)}100%{stroke:var(--rule)}}
+  @media (prefers-reduced-motion:reduce){
+    .flow1,.flow2,.flow3,.flowB,.flowC{animation:none;opacity:0}
+    .worker-pulse,.worker-pulse2{animation:none}
+    .ln{animation:none!important;opacity:1!important}
+    .cursor{animation:none}
+    .bar i{transition:none!important;width:var(--w)!important}
+  }
+  .arch-cap{font-family:var(--mono);font-size:.8rem;color:var(--muted);
+    text-align:center;padding:10px 6px 8px}
+
+  /* ============ BENCHMARK BARS ============ */
+  .bench{background:var(--panel);border:1px solid var(--rule);border-radius:12px;padding:22px 24px}
+  .bar-row{display:grid;grid-template-columns:110px 1fr 92px;gap:14px;align-items:center;margin:14px 0}
+  .bar-l{font-family:var(--mono);font-size:.85rem;color:var(--muted);text-align:right}
+  .bar{height:26px;background:var(--panel2);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+  .bar i{display:block;height:100%;width:0;border-radius:5px;transition:width 1.4s cubic-bezier(.2,.8,.2,1)}
+  .bar.on i{width:var(--w)}
+  .b1 i{--w:23%;background:linear-gradient(90deg,#3E5A4D,var(--amber))}
+  .b8 i{--w:100%;background:linear-gradient(90deg,#2E7D5B,var(--ok))}
+  .bar-v{font-family:var(--mono);font-size:.9rem;font-weight:700}
+  .b1 ~ .bar-v{color:var(--amber)}
+  .chips{display:flex;flex-wrap:wrap;gap:10px;margin-top:18px}
+  .chip{font-family:var(--mono);font-size:.84rem;background:var(--panel2);
+    border:1px solid var(--rule);border-radius:6px;padding:5px 11px;white-space:nowrap}
+  .chip b{color:var(--ok)}
+  .bench-note{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin-top:14px}
+
+  .trynote{font-size:.96rem;color:var(--muted);margin-top:18px}
+  .trynote code{font-family:var(--mono);font-size:.88em;background:var(--panel2);
+    border:1px solid var(--rule);border-radius:4px;padding:1px 6px;color:var(--amber)}
+
+  /* ============ PROJECT CARDS ============ */
+  .card{background:var(--panel);border:1px solid var(--rule);border-radius:12px;
+    padding:22px 24px;margin-bottom:18px;
+    transition:transform .25s ease,border-color .25s ease}
+  .card:hover{transform:translateY(-3px);border-color:var(--ok)}
+  .card h3{font-family:var(--mono);font-size:1.08rem;font-weight:700}
+  .card h3 .y{color:var(--amber)}
+  .card .stack{font-family:var(--mono);font-size:.78rem;color:var(--muted);margin:4px 0 10px}
+  .card p{font-size:.97rem;color:#CBD5CE}
+  .card .links{margin-top:12px;font-family:var(--mono);font-size:.88rem}
+
+  .elsewhere{font-family:var(--mono);font-size:.95rem;display:flex;flex-wrap:wrap;gap:8px 24px}
+  footer{margin-top:74px;padding-top:20px;border-top:1px solid var(--rule);
+    font-family:var(--mono);font-size:.8rem;color:var(--muted)}
+  @media (max-width:560px){
+    .bar-row{grid-template-columns:80px 1fr 74px;gap:8px}
+    .term-body{font-size:.8rem}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- ============ HERO ============ -->
+  <div class="term">
+    <div class="term-bar">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+      <span class="term-title">curl -v vani — port 8081</span>
+    </div>
+    <div class="term-body">
+      <span class="ln p">$ curl -v https://this-very-page/</span>
+      <span class="ln">HTTP/1.1 <span class="g">200 OK</span></span>
+      <span class="ln"><span class="y">Content-Type:</span> text/html</span>
+      <span class="ln"><span class="y">Connection:</span> keep-alive</span>
+      <span class="ln"><span class="y">X-Served-By:</span> a handwritten C++ server — no nginx, no frameworks</span>
+      <span class="ln p">\r\n  <span class="cursor"></span></span>
+    </div>
+  </div>
+
+  <h1>Vani Girdhar<span class="g">_</span></h1>
+  <p class="tagline">CS undergrad @ IGDTUW &middot; building things from the socket up</p>
+  <p class="thesis">You're not reading this off nginx or Vercel —
+    <strong>this page is served by an HTTP/1.1 server I wrote from scratch in C++.</strong></p>
+
+  <!-- ============ ARCHITECTURE ============ -->
+  <section>
+    <p class="eyebrow">inside this server — live-ish</p>
+    <div class="arch">
+      <svg viewBox="0 0 700 220" xmlns="http://www.w3.org/2000/svg" role="img"
+           aria-label="Architecture: clients flow through accept into a job queue, picked up by 8 worker threads">
+        <!-- wires -->
+        <path class="wire" d="M118 110 H 205"/>
+        <path class="wire" d="M355 110 H 400"/>
+        <path class="wire" d="M400 110 C 440 110 440 44 480 44"/>
+        <path class="wire" d="M400 110 C 440 110 440 162 480 162"/>
+        <!-- clients -->
+        <rect class="box" x="28" y="84" width="90" height="52" rx="8"/>
+        <text class="lbl-b" x="73" y="106" text-anchor="middle">clients</text>
+        <text class="lbl" x="73" y="122" text-anchor="middle">accept()</text>
+        <!-- queue -->
+        <rect class="box box-ok" x="205" y="84" width="150" height="52" rx="8"/>
+        <text class="lbl-b" x="280" y="106" text-anchor="middle">job queue</text>
+        <text class="lbl" x="280" y="122" text-anchor="middle">mutex + cond_var</text>
+        <!-- workers -->
+        <rect class="box worker-pulse" x="480" y="18" width="190" height="52" rx="8"/>
+        <text class="lbl-b" x="575" y="40" text-anchor="middle">worker threads 1–4</text>
+        <text class="lbl" x="575" y="56" text-anchor="middle">handle_client()</text>
+        <rect class="box worker-pulse2" x="480" y="136" width="190" height="52" rx="8"/>
+        <text class="lbl-b" x="575" y="158" text-anchor="middle">worker threads 5–8</text>
+        <text class="lbl" x="575" y="174" text-anchor="middle">handle_client()</text>
+        <!-- flowing requests -->
+        <circle class="req flow1" cx="112" cy="110" r="5"/>
+        <circle class="req flow2" cx="112" cy="110" r="5"/>
+        <circle class="req2 flow3" cx="112" cy="110" r="5"/>
+        <circle class="req2 flowB" cx="112" cy="110" r="5"/>
+        <circle class="req flowC" cx="112" cy="110" r="5"/>
+      </svg>
+      <p class="arch-cap">requests → accept → shared queue → 8 fixed workers &middot; the actual architecture serving you right now</p>
+    </div>
+  </section>
+
+  <!-- ============ BENCHMARKS ============ -->
+  <section>
+    <p class="eyebrow">measured, not claimed</p>
+    <div class="bench">
+      <div class="bar-row">
+        <span class="bar-l">1 worker</span>
+        <div class="bar b1"><i></i></div>
+        <span class="bar-v" style="color:var(--amber)">14.8k/s</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-l">8 workers</span>
+        <div class="bar b8"><i></i></div>
+        <span class="bar-v" style="color:var(--ok)">65k+/s</span>
+      </div>
+      <div class="chips">
+        <span class="chip">p99 <b>&lt;1ms</b></span>
+        <span class="chip"><b>~5x</b> scaling</span>
+        <span class="chip"><b>0</b> dropped reads/writes</span>
+        <span class="chip"><b>0</b> frameworks</span>
+      </div>
+      <p class="bench-note">wrk -t4 -c100 -d10s &middot; median of 3 runs &middot; methodology in the README</p>
+    </div>
+    <p class="trynote">Don't take my word for it — try <code>GET /../secret</code> and this server
+      will 403 you (path-traversal guard). And there's exactly one unlinked page here; guess the path.
+      &nbsp;<a href="https://github.com/vanixyz/httpd-cpp">Read the source →</a></p>
+  </section>
+
+  <!-- ============ PROJECTS ============ -->
+  <section>
+    <p class="eyebrow">projects</p>
+
+    <div class="card">
+      <h3>httpd-cpp <span class="y">— the server behind this page</span></h3>
+      <p class="stack">C++17 &middot; POSIX sockets &middot; multithreading &middot; Linux</p>
+      <p>HTTP/1.1 from scratch: custom parser, MIME-aware static file serving,
+         keep-alive, socket timeouts, and a thread pool on a mutex/condition-variable
+         queue. Hardened against malformed requests and path traversal; verified
+         with raw-socket tests.</p>
+      <p class="links"><a href="https://github.com/vanixyz/httpd-cpp">GitHub</a></p>
+    </div>
+
+    <div class="card">
+      <h3>SnapSkill</h3>
+      <p class="stack">Flask &middot; LangChain &middot; Cohere &middot; React</p>
+      <p>An AI-powered resume builder — LLM backend with prompt-engineered generation
+         (95% consistent formatting), REST integration with a React frontend, and an
+         automated PDF pipeline via Jinja2 + wkhtmltopdf.</p>
+      <!-- TODO(vani): replace with the real SnapSkill repo/demo URLs -->
+      <p class="links"><a href="https://github.com/Vartekalohiya13/SnapSkill.git">GitHub</a></p>
+    </div>
+  </section>
+
+  <!-- ============ ELSEWHERE ============ -->
+  <section>
+    <p class="eyebrow">elsewhere</p>
+    <div class="elsewhere">
+      <a href="https://github.com/vanixyz">github</a>
+      <a href="https://linkedin.com/in/vani-girdhar">linkedin</a>
+      <a href="https://codolio.com/profile/vani_2244">codolio</a>
+      <a href="mailto:vanigirdhar41@gmail.com">email</a>
+    </div>
+  </section>
+
+  <footer>
+    served by httpd-cpp &middot; written from scratch in C++17 &middot;
+    plain HTML+CSS — view source, there's nothing to hide<span class="cursor" style="margin-left:6px"></span>
+  </footer>
+
+</div>
+
+<script>
+  // benchmark bars animate when scrolled into view
+  const bench = document.querySelector('.bench');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        bench.querySelectorAll('.bar').forEach(b => b.classList.add('on'));
+        io.disconnect();
+      }
+    });
+  }, { threshold: 0.4 });
+  io.observe(bench);
+</script>
+</body>
 </html>
