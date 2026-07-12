@@ -8,6 +8,7 @@
 #include "file_server.hpp"
 #include <thread>
 #include "thread_pool.hpp"
+#include <cstdlib> //get env
 //Poori request aane tak padho (headers ka end =\r\n\r\n)
 //true = request mili , false=client gaya/timeout/ bahut badi request
 bool read_request(int fd , std::string& raw){
@@ -127,8 +128,11 @@ int main(){
     std::memset(&addr , 0 , sizeof(addr));
     addr.sin_family=AF_INET;
     addr.sin_addr.s_addr=INADDR_ANY; //ismachine k ekisi bhi IP epe
-    addr.sin_port=htons(8081); //htons = port ko network fromat me
-
+    //addr.sin_port=htons(8081); //htons = port ko network fromat me
+    int port = 8081;
+    if(const char* p= std::getenv("PORT"))
+        port = std::atoi(p);
+       addr.sin_port= htons(port);
     //4. bind = phonei ko number do
     if(bind(server_fd , (sockaddr*)&addr,sizeof(addr))<0){
         std::cerr<<"bind()) fail-port busy hai kya?\n";
@@ -137,7 +141,7 @@ int main(){
 
     //5 listen=ringer on karo , calls aa sakti hai ab
     listen(server_fd,10); //10=waiting line ki length
-    std::cout<<"server chal raha hai: http://localhost:8081\n";
+    std::cout<<"server chal raha hai: http://localhost:"<<port<<std::endl;;
     
      ThreadPool pool(8); //8 permanent waiters
     //6 hamehsa k lie loop har call utha jawab de , kaat de
