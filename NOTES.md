@@ -180,4 +180,10 @@ benchmarks — kitna tez hai ye sab? (Day 7)
 
  -Day 7: buildfast (-O2, no ASan) vs build; logging ki keemat; write_all (partial writes — read ka judwa); wrk ka WSL clock bug (307 arab minute 😄) + sanity-check habit; multiple runs + median (variance ka sach); 1→8 workers = ~5x
 
+ Docker Desktop update ke baad engine atka → docker-desktop distro unregister = fresh sandbox = fix"
  
+ "Dockerfile me # sirf line-start pe comment hai; inline # arguments ban jata hai (Python/bash se alag)." 
+
+ Multi-stage me build-image naya, run-image purana → GLIBCXX not found. Dynamic linking = binary + system libraries ka rishta; fix = -static-libstdc++ (dependency ko binary me hi pack karo). Lesson: jahan banao aur jahan chalao — dono environments ka match matter karta hai."
+
+ OTES: "Container/pipe me stdout buffered hota hai — \n flush nahi karta, endl karta hai. Server 3 min se zinda tha, message buffer me tha. Lesson: 'output nahi aaya' ≠ 'program nahi chala' — docker ps ne sach dikhaya."
